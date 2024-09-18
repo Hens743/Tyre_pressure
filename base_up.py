@@ -1,71 +1,64 @@
 import streamlit as st
 
-# Simulated database of tyre characteristics (for simplicity)
-tyre_data = {
-    "205/55 R16": {"load_index": 91, "max_pressure_psi": 44, "max_pressure_bar": 3.0},
-    "225/45 R17": {"load_index": 94, "max_pressure_psi": 50, "max_pressure_bar": 3.5},
-    "195/65 R15": {"load_index": 89, "max_pressure_psi": 40, "max_pressure_bar": 2.8},
+# Load index data from the image
+load_index_table = {
+    90: 600, 91: 615, 92: 630, 93: 650, 94: 670, 95: 690, 96: 710, 97: 730, 98: 750, 99: 775, 100: 800, 101: 825,
+    102: 850, 103: 875, 104: 900, 105: 925, 106: 950, 107: 975, 108: 1000, 109: 1030, 110: 1060, 111: 1090, 112: 1120, 
+    113: 1150, 114: 1180, 115: 1215, 116: 1250, 117: 1285, 118: 1320, 119: 1360, 120: 1400, 121: 1450, 122: 1500, 
+    123: 1550, 124: 1600, 125: 1650
 }
 
-def estimate_tyre_pressure(load_per_tyre, max_load_capacity, max_pressure):
+def estimate_tyre_pressure(load_per_tyre, max_load_capacity, reference_pressure):
     """
-    Calculate the required tyre pressure for a given load.
+    Calculate the required tyre pressure for a given load based on reference values.
     
     Parameters:
     - load_per_tyre: The load on each tyre (kg).
-    - max_load_capacity: The maximum load capacity of the tyre (kg) based on the tyre's load index.
-    - max_pressure: The maximum pressure of the tyre (PSI).
+    - max_load_capacity: The maximum load capacity of the tyre (kg).
+    - reference_pressure: The reference tyre pressure (Bar).
     
     Returns:
-    - The required tyre pressure (PSI) for the given load.
+    - The required tyre pressure (Bar) for the given load.
     """
     if load_per_tyre > max_load_capacity:
         return None, "The load per tyre exceeds the tyre's maximum load capacity!"
     
     # Calculate the required pressure proportionally
-    required_pressure = max_pressure * (load_per_tyre / max_load_capacity)
+    required_pressure = reference_pressure * (load_per_tyre / max_load_capacity)
     
     return required_pressure, None
 
 # Streamlit app
-st.title("Tyre Pressure Estimator for Car or Trailer")
+st.title("Tyre Pressure Estimator with Real Load Index Data")
 
 # User input: Select vehicle type
 vehicle_type = st.selectbox("Select Vehicle Type", ["Car", "Trailer/Caravan"])
 
 # Tyre dimension input
-tyre_dimension = st.text_input("Enter Tyre Size (e.g., 205/55 R16)", "205/55 R16")
+tyre_dimension = st.text_input("Enter Tyre Size (e.g., 195/55 R15)", "195/55 R15")
 
-# Fetch default values based on tyre dimension
-if tyre_dimension in tyre_data:
-    tyre_info = tyre_data[tyre_dimension]
-    default_load_index = tyre_info["load_index"]
-    default_max_pressure_psi = tyre_info["max_pressure_psi"]
-    default_max_pressure_bar = tyre_info["max_pressure_bar"]
-    st.write(f"Default Load Index: {default_load_index}, Max Pressure: {default_max_pressure_psi} PSI / {default_max_pressure_bar} Bar")
-else:
-    st.write("Tyre size not found, please enter details manually.")
-    default_load_index = 91  # Placeholder if not found
-    default_max_pressure_psi = 44
-    default_max_pressure_bar = 3.0
+# Tyre load index input
+load_index = st.selectbox("Select Tyre Load Index", list(load_index_table.keys()), index=1)
+
+# Maximum load capacity based on selected load index
+max_load_capacity = load_index_table[load_index]
 
 # User input for pressure units
-pressure_unit = st.selectbox("Select Pressure Unit", ["PSI", "Bar"])
+pressure_unit = st.selectbox("Select Pressure Unit", ["Bar", "PSI"])
 
 # Conversion factor for PSI to Bar
 psi_to_bar = 0.0689476
 
-# User input for load index and max pressure, with defaults from tyre data
-tyre_load_index = st.number_input("Maximum Load Capacity per Tyre (Load Index)", min_value=50, max_value=150, value=default_load_index)
+# Default reference pressures for the given tyre (in Bar)
+reference_front_pressure = 2.0  # Front tyre pressure for this vehicle spec (Bar)
+reference_rear_pressure = 2.2   # Rear tyre pressure for this vehicle spec (Bar)
 
-if pressure_unit == "PSI":
-    max_pressure = st.number_input("Maximum Pressure of Tyre (PSI)", min_value=20, max_value=100, value=default_max_pressure_psi)
-else:
-    max_pressure = st.number_input("Maximum Pressure of Tyre (Bar)", min_value=1.5, max_value=7.0, value=default_max_pressure_bar)
-    max_pressure = max_pressure / psi_to_bar  # Convert Bar to PSI internally for calculations
+# Kerb weight and max weight input
+kerb_weight = st.number_input("Kerb Weight (kg)", min_value=1000, max_value=2000, value=1088)
+max_weight = st.number_input("Maximum Weight (kg)", min_value=1500, max_value=2000, value=1639)
 
-# User input for vehicle weight
-vehicle_weight = st.number_input("Total Vehicle Weight (kg)", min_value=500, max_value=10000, value=1400)
+# Calculate load distribution for front and rear
+vehicle_weight = st.slider("Vehicle Weight to Calculate (kg)", min_value=int(kerb_weight), max_value=int(max_weight), value=int(kerb_weight))
 
 if vehicle_type == "Car":
     load_distribution = st.slider("Load Distribution (% on rear axle)", 0, 100, 60)
@@ -90,19 +83,22 @@ st.write(f"Rear Tyre Load: {rear_tyre_load:.2f} kg per tyre")
 if vehicle_type == "Car":
     st.write(f"Front Tyre Load: {front_tyre_load:.2f} kg per tyre")
 
-# Estimate pressures
+# Estimate pressures based on reference values (2.0 bar front, 2.2 bar rear for this spec)
 st.subheader("Estimated Tyre Pressures")
 
-rear_tyre_pressure, rear_error = estimate_tyre_pressure(rear_tyre_load, tyre_load_index * 10, max_pressure)  # Assume load index * 10 = max load capacity in kg
-if vehicle_type == "Car":
-    front_tyre_pressure, front_error = estimate_tyre_pressure(front_tyre_load, tyre_load_index * 10, max_pressure)
+# Calculate rear tyre pressure
+rear_tyre_pressure, rear_error = estimate_tyre_pressure(rear_tyre_load, max_load_capacity, reference_rear_pressure)
 
-# Convert calculated pressures to the selected unit (if Bar)
-if pressure_unit == "Bar":
+# Calculate front tyre pressure if it's a car
+if vehicle_type == "Car":
+    front_tyre_pressure, front_error = estimate_tyre_pressure(front_tyre_load, max_load_capacity, reference_front_pressure)
+
+# Convert calculated pressures to the selected unit (if PSI)
+if pressure_unit == "PSI":
     if rear_tyre_pressure:
-        rear_tyre_pressure = rear_tyre_pressure * psi_to_bar
+        rear_tyre_pressure = rear_tyre_pressure / psi_to_bar
     if vehicle_type == "Car" and front_tyre_pressure:
-        front_tyre_pressure = front_tyre_pressure * psi_to_bar
+        front_tyre_pressure = front_tyre_pressure / psi_to_bar
 
 # Display rear tyre pressure
 if rear_error:
